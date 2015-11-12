@@ -9,7 +9,6 @@ import numpy as np
 from matplotlib import pylab as plt
 from matplotlib.dates import AutoDateLocator
 
-from shyft.api.__init__ import TsFixed
 from shyft.api import UtcPeriod
 from shyft.api import TsTransform
 from shyft.api import IntVector
@@ -31,6 +30,7 @@ from shyft.orchestration.plotting import plot_np_percentiles
 from shyft.orchestration.plotting import set_calendar_formatter
 from shyft.orchestration.plotting import utc_to_greg
 from shyft.orchestration.plotting import greg_to_utc
+from shyft.orchestration.plotting import plot_timeseries
 from shyft.orchestration.simulator import SimpleSimulator as Simulator
 
 
@@ -82,7 +82,7 @@ def construct_calibration_parameters(simulator):
     return p, p_min, p_max
 
 
-def plot_results(ptgsk, q_obs=None, color_weeks=False):
+def plot_results(ptgsk, q_obs=None, use_week_marks=False):
     h_obs = None
     if ptgsk is not None:
         discharge = ptgsk.region_model.statistics.discharge([0])
@@ -90,59 +90,14 @@ def plot_results(ptgsk, q_obs=None, color_weeks=False):
         precip = ptgsk.region_model.statistics.precipitation([0])
         tss = [discharge, temp, precip]
         labels = [r"Discharge in $\mathbf{m^3s^{-1}}$", "Temperature in C", r"Precipitation in mm"]
-        plot_timeseries(tss, labels, color_weeks=color_weeks)
+        plot_timeseries(tss, Calendar(), labels=labels, use_week_marks=use_week_marks)
     if q_obs is not None:
-        plt.subplot(3, 1, 1)
+        if ptgsk is not None:
+            plt.subplot(3, 1, 1)
         obs_times = utc_to_greg([q_obs.time(i) for i in range(q_obs.size())])
         ovs = [q_obs.value(i) for i in range(q_obs.size())]
         h_obs, = plt.plot(obs_times, ovs, linewidth=2, color='k')
     return h_obs
-
-
-def mark_weeks(cal, t_start, t_stop):
-    tick_start = int(greg_to_utc(t_start))
-    tick_stop = int(greg_to_utc(t_stop))
-    week_starts = [cal.trim(tick_start, cal.WEEK)]
-    ax = plt.gca()
-    while week_starts[-1] < tick_stop:
-        week_starts.append(cal.trim(week_starts[-1] + cal.WEEK, cal.WEEK))
-    for i in range(0, len(week_starts) - 1, 2):
-        ax.axvspan(utc_to_greg(week_starts[i]), utc_to_greg(week_starts[i+1]), color=[0.7, 0.7, 0.7, 0.4])
-
-
-def plot_timeseries(time_series, labels=None, color_weeks=True):
-    utc = Calendar()
-    n_figs = len(time_series)
-    ax = plt.subplot(n_figs, 1, 1)
-    t_start = None
-    t_stop = None
-    # Convert time series to simple structures and find min/max in time dimension
-    times = []
-    values = []
-    for i, ts in enumerate(time_series):
-        if isinstance(ts, TsFixed):
-            times.append(utc_to_greg([ts.time(i) for i in range(ts.size())]))
-            values.append(np.array(ts.v))
-        else:
-            times.append(utc_to_greg(ts[0]))
-            values.append(ts[1])
-        if t_start is None or t_start > times[-1][0]:
-            t_start = times[-1][0]
-        if t_stop is None or t_stop < times[-1][-1]:
-            t_stop = times[-1][-1]
-
-    for i, (t, v) in enumerate(zip(times, values)):
-        if i > 0:
-            plt.subplot(n_figs, 1, i + 1, sharex=ax)
-        plt.hold(1)
-        if color_weeks:
-            mark_weeks(utc, t_start, t_stop)
-        plt.plot(t, v)
-        plt.gca().grid(b=True, color=(51/256, 102/256, 193/256), linewidth=0.1, linestyle='-', axis='y')
-        if labels is not None:
-            plt.ylabel(labels[i])
-    ax.set_xlim(t_start, t_stop)
-    set_calendar_formatter(utc)
 
 
 def plot_percentiles(sim, percentiles, obs=None):
@@ -200,7 +155,7 @@ def forecast_demo():
     ptgsk.region_model.get_region_parameter().gs.max_water = 0.2
     initial_state = burn_in_state(ptgsk, t_start, utc.time(YMDhms(2012, 9, 1)), q_obs_m3s_ts)
     ptgsk.run(obs_time_axis, initial_state)
-    plot_results(ptgsk, q_obs_m3s_ts, color_weeks=True)
+    plot_results(ptgsk, q_obs_m3s_ts, use_week_marks=True)
 
     current_state = adjust_simulator_state(ptgsk, t_fc_start, q_obs_m3s_ts)
 
@@ -273,8 +228,8 @@ def continuous_calibration():
         state = ptgsk.reg_model_state
         opt_states[t] = state
 
-    recal_stop = utc.time(YMDhms(2012, 5, 30))
-    #recal_stop = utc.time(YMDhms(2011, 10, 5))
+    #recal_stop = utc.time(YMDhms(2012, 5, 30))
+    recal_stop = utc.time(YMDhms(2011, 11, 30))
     curr_time = recal_start
     q_obs_avg = TsTransform().to_average(t_start, dt, n_obs + 1, q_obs_m3s_ts)
     target_spec = TargetSpecificationPts(q_obs_avg, IntVector([0]), 1.0, KLING_GUPTA)
@@ -292,7 +247,9 @@ def continuous_calibration():
         p_opt = ptgsk.optimize(Timeaxis(opt_start, dt, 24*num_opt_days), opt_state, target_spec_vec,
                                p, p_min, p_max, tr_stop=1.0e-5)
         ptgsk.region_model.set_region_parameter(p_opt)
-        corr_state = adjust_simulator_state(ptgsk, curr_time, q_obs_m3s_ts)
+        #corr_state = adjust_simulator_state(ptgsk, curr_time, q_obs_m3s_ts)
+        corr_state = ptgsk.reg_model_state
+
         ptgsk.run(Timeaxis(curr_time, dt, 24), corr_state)
         curr_time += deltahours(24)
         opt_states[curr_time] = ptgsk.reg_model_state
@@ -302,7 +259,7 @@ def continuous_calibration():
     
     ts_list = [[times, values], temp, precip]
     labels = [r"Discharge in $\mathbf{m^3s^{-1}}$", "Temperatures in C", "Precipitation in mm"]
-    plot_timeseries(ts_list, labels)
+    plot_timeseries(ts_list, utc, labels)
     plt.subplot(3, 1, 1)
     plot_results(None, q_obs=observed_tistel_discharge(UtcPeriod(recal_start, recal_stop)))
     plt.interactive(1)

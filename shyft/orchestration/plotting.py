@@ -1,8 +1,9 @@
 import numpy as np
 import matplotlib.pylab as plt
 from matplotlib import ticker
-from shyft.api import deltahours
 from matplotlib.patches import Rectangle
+from shyft.api.__init__ import TsFixed
+from shyft.api import deltahours
 
 
 def blend_colors(color1, color2):
@@ -52,6 +53,53 @@ def plot_np_percentiles(time, percentiles, base_color=1.0, alpha=0.5, plw=0.5, l
         mean_h = handles.pop(len(handles)//2)
         handles = [mean_h] + handles
     return (handles + f_handles), proxy_handles
+
+
+def plot_timeseries(time_series, calendar, labels=None, use_week_marks=False):
+    n_figs = len(time_series)
+    ax = plt.subplot(n_figs, 1, 1)
+    t_start = None
+    t_stop = None
+    # Convert time series to simple structures and find min/max in time dimension
+    times = []
+    values = []
+    for i, ts in enumerate(time_series):
+        if isinstance(ts, TsFixed):
+            times.append(utc_to_greg([ts.time(i) for i in range(ts.size())]))
+            values.append(np.array(ts.v))
+        else:
+            times.append(utc_to_greg(ts[0]))
+            values.append(ts[1])
+        if t_start is None or t_start > times[-1][0]:
+            t_start = times[-1][0]
+        if t_stop is None or t_stop < times[-1][-1]:
+            t_stop = times[-1][-1]
+
+    for i, (t, v) in enumerate(zip(times, values)):
+        if i > 0:
+            plt.subplot(n_figs, 1, i + 1, sharex=ax)
+        plt.hold(1)
+        if use_week_marks:
+            mark_weeks(calendar, t_start, t_stop)
+        plt.plot(t, v)
+        plt.gca().grid(b=True, color=(51/256, 102/256, 193/256), linewidth=0.1, linestyle='-', axis='y')
+        if labels is not None:
+            plt.ylabel(labels[i])
+    ax.set_xlim(t_start, t_stop)
+    set_calendar_formatter(calendar)
+
+
+def mark_weeks(cal, t_start, t_stop):
+    tick_start = int(greg_to_utc(t_start))
+    tick_stop = int(greg_to_utc(t_stop))
+    week_starts = [cal.trim(tick_start, cal.WEEK)]
+    ax = plt.gca()
+    while week_starts[-1] < tick_stop:
+        week_starts.append(cal.trim(week_starts[-1] + cal.WEEK, cal.WEEK))
+    for i in range(0, len(week_starts) - 1, 2):
+        ax.axvspan(utc_to_greg(week_starts[i]), utc_to_greg(week_starts[i+1]), color=[0.7, 0.7, 0.7, 0.4])
+
+
 
 
 def set_calendar_formatter(cal, str_format="{year:04d}.{month:02d}.{day:02d}", format_major=True):
