@@ -14,7 +14,9 @@ from shyft.repository.netcdf import (
     RegionModelRepository, GeoTsRepository, get_geo_ts_collection, yaml_config)
 from shyft.repository.interpolation_parameter_repository import (
     InterpolationParameterRepository)
+from shyft.repository import geo_ts_repository_collection
 from .simulator import DefaultSimulator
+from .configuration.yaml_constructors import r_m_repo_constructors,geo_ts_repo_constructors
 
 
 utc_calendar = api.Calendar()
@@ -118,10 +120,19 @@ class YAMLConfig(object):
         datasets_config = yaml_config.YamlContent(datasets_config_file)
 
         # Build some interesting constructs
-        region_model = RegionModelRepository(
+        # Construct RegionModelRepository
+        #region_model = RegionModelRepository(
+        #    region_config, model_config, self.model_t, self.epsg)
+        region_model = r_m_repo_constructors[region_config.repository()['name']](
             region_config, model_config, self.model_t, self.epsg)
+        # Construct InterpolationParameterRepository
         interp_repos = InterpolationParameterRepository(model_config)
-        geo_ts = get_geo_ts_collection(datasets_config, self.data_dir)
+        # Construct GeoTsRepository
+        #geo_ts = get_geo_ts_collection(datasets_config, self.data_dir)
+        geo_ts_repos = []
+        for source in datasets_config.sources:
+            geo_ts_repos.append(geo_ts_repo_constructors[source['repository']](source['params']))
+        geo_ts = geo_ts_repository_collection.GeoTsRepositoryCollection(geo_ts_repos)
 
         # If region and interpolation ids are not present, just use fake ones
         region_id = 0 if not hasattr(self, "region_id") else int(self.region_id)
