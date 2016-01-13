@@ -3,6 +3,7 @@ sources:
   - repository: source_repo1
     class: shyft.repository.netcdf.geo_ts_repository.GeoTsRepository
     params:
+      data_dir: D:/users/ysa/shyft_fork/shyft-data
       stations_met: netcdf/orchestration-testdata/atnasjoen_met.nc
       types:
         - type: precipitation

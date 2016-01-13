@@ -1,5 +1,6 @@
 ---
 repository:
+  name: netcdf
   class: shyft.repository.netcdf.RegionModelRepository
   data_file: netcdf/orchestration-testdata/atnasjoen_cell_info.nc
 
