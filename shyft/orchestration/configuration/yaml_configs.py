@@ -1,6 +1,4 @@
-"""
-Utilities for reading YAML configurations for SHyFT simulations.
-"""
+import yaml
 
 import os
 from datetime import datetime
@@ -10,12 +8,73 @@ import numpy as np
 
 from shyft import api
 from shyft.api import pt_gs_k, pt_ss_k, pt_hs_k
-from shyft.repository.netcdf import (
-    RegionModelRepository, GeoTsRepository, get_geo_ts_collection, yaml_config)
+#from shyft.repository.netcdf import (
+#    RegionModelRepository, GeoTsRepository, get_geo_ts_collection, yaml_config)
 from shyft.repository.interpolation_parameter_repository import (
     InterpolationParameterRepository)
-from .simulator import DefaultSimulator
+from shyft.repository import geo_ts_repository_collection
+from ..simulator import DefaultSimulator
+from .yaml_constructors import (r_m_repo_constructors, geo_ts_repo_constructors)
+from . import config_interfaces
 
+
+class YamlContent(object):
+    """
+    Concrete class for yaml content.
+    """
+
+    def __init__(self, config_file):
+        self._config_file = config_file
+        with open(config_file) as cfg_file:
+            config = yaml.load(cfg_file)
+        # Expose all keys in yaml file as attributes
+        self.__dict__.update(config)
+
+    def __repr__(self):
+        srepr = "%s(" % self.__class__.__name__
+        for key in self.__dict__:
+            srepr += "%s=%r, " % (key, self.__dict__[key])
+        srepr = srepr[:-2]
+        return srepr + ")"
+
+
+class RegionConfig(config_interfaces.RegionConfig):
+    """
+    Yaml based region configuration, using a YamlContent instance
+    for holding the content.
+    """
+
+    def __init__(self, config_file):
+        self._config = YamlContent(config_file)
+
+    def parameter_overrides(self):
+        return getattr(self._config, "parameter_overrides", {})
+
+    def domain(self):
+        return self._config.domain
+
+    def repository(self):
+        return self._config.repository
+
+
+class ModelConfig(config_interfaces.ModelConfig):
+    """
+    Yaml based model configuration, using a YamlContent instance
+    for holding the content.
+    """
+
+    def __init__(self, config_file):
+        self._config = YamlContent(config_file)
+
+    def interpolation_parameters(self):
+        return self._config.parameters["interpolation"]
+
+    def model_parameters(self):
+        return self._config.parameters["model"]
+
+    def model_type(self):
+        module, model_t = self._config.model_t.split(".")
+        return getattr(globals()[module], model_t)
 
 utc_calendar = api.Calendar()
 """Invariant global calendar in UTC."""
@@ -98,39 +157,40 @@ class YAMLConfig(object):
             module, model_t = self.model_t.split(".")
             self.model_t = getattr(globals()[module], model_t)
 
-    def get_simulator(self):
-        """
-        Return a DefaultSimulator based on `cfg`.
+        self.construct_repos()
 
-        Returns
-        -------
-        DefaultSimulator instance
+    def construct_repos(self):
+        """
+        Construct repositories
         """
         # Read region, model and datasets config files
         region_config_file = os.path.join(
             self.config_dir, self.region_config_file)
-        region_config = yaml_config.RegionConfig(region_config_file)
+        region_config = RegionConfig(region_config_file)
+
         model_config_file = os.path.join(
             self.config_dir, self.model_config_file)
-        model_config = yaml_config.ModelConfig(model_config_file)
+        model_config = ModelConfig(model_config_file)
+
         datasets_config_file = os.path.join(
             self.config_dir, self.datasets_config_file)
-        datasets_config = yaml_config.YamlContent(datasets_config_file)
+        datasets_config = YamlContent(datasets_config_file)
 
-        # Build some interesting constructs
-        region_model = RegionModelRepository(
-            region_config, model_config, self.model_t, self.epsg)
-        interp_repos = InterpolationParameterRepository(model_config)
-        geo_ts = get_geo_ts_collection(datasets_config, self.data_dir)
+        # Construct RegionModelRepository
+        self.region_model = r_m_repo_constructors[region_config.repository()['name']](
+            region_config, model_config)
+        # Construct InterpolationParameterRepository
+        self.interp_repos = InterpolationParameterRepository(model_config)
+        # Construct GeoTsRepository
+        geo_ts_repos = []
+        for source in datasets_config.sources:
+            geo_ts_repos.append(geo_ts_repo_constructors[source['repository']](source['params']))
+        self.geo_ts = geo_ts_repository_collection.GeoTsRepositoryCollection(geo_ts_repos)
 
         # If region and interpolation ids are not present, just use fake ones
-        region_id = 0 if not hasattr(self, "region_id") else int(self.region_id)
-        interpolation_id = 0 if not hasattr(self, "interpolation_id") \
+        self.region_id = 0 if not hasattr(self, "region_id") else int(self.region_id)
+        self.interpolation_id = 0 if not hasattr(self, "interpolation_id") \
                            else int(self.interpolation_id)
-        # set up the simulator
-        simulator = DefaultSimulator(region_id, interpolation_id, region_model,
-                                     geo_ts, interp_repos, None)
-        return simulator
 
     def __repr__(self):
         srepr = "%s::%s(" % (self.__class__.__name__, self._config_section)
