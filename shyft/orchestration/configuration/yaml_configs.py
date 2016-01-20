@@ -1,5 +1,3 @@
-import yaml
-
 import os
 from datetime import datetime
 
@@ -8,12 +6,9 @@ import numpy as np
 
 from shyft import api
 from shyft.api import pt_gs_k, pt_ss_k, pt_hs_k
-#from shyft.repository.netcdf import (
-#    RegionModelRepository, GeoTsRepository, get_geo_ts_collection, yaml_config)
 from shyft.repository.interpolation_parameter_repository import (
     InterpolationParameterRepository)
 from shyft.repository import geo_ts_repository_collection
-from ..simulator import DefaultSimulator
 from .yaml_constructors import (r_m_repo_constructors, geo_ts_repo_constructors)
 from . import config_interfaces
 
@@ -55,6 +50,9 @@ class RegionConfig(config_interfaces.RegionConfig):
 
     def repository(self):
         return self._config.repository
+        
+    def catchments(self):
+        return getattr(self._config, "catchment_indices", None)
 
 
 class ModelConfig(config_interfaces.ModelConfig):
@@ -184,7 +182,7 @@ class YAMLConfig(object):
         # Construct GeoTsRepository
         geo_ts_repos = []
         for source in datasets_config.sources:
-            geo_ts_repos.append(geo_ts_repo_constructors[source['repository']](source['params']))
+            geo_ts_repos.append(geo_ts_repo_constructors[source['repository']](source['params'],region_config))
         self.geo_ts = geo_ts_repository_collection.GeoTsRepositoryCollection(geo_ts_repos)
 
         # If region and interpolation ids are not present, just use fake ones
