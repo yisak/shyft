@@ -147,7 +147,10 @@ class YAMLConfig(object):
                 "'data_dir' must exist and be an absolute path")
 
         # Create a time axis
-        self.start_time = utctime_from_datetime(self.start_datetime)
+        #self.start_time = utctime_from_datetime(self.start_datetime)
+        # It is assumed that the time specified in the config file is in UTC
+        dt = self.start_datetime
+        self.start_time = utc_calendar.time(api.YMDhms(dt.year, dt.month, dt.day, dt.hour, dt.minute, dt.second))
         self.time_axis = api.Timeaxis(
             self.start_time, self.run_time_step, self.number_of_steps)
         # Get the region model in API (already an object if in kwargs)
