@@ -1,19 +1,5 @@
 """
-Read region CF-compliant netCDF files with cell data.
-
-This part of code is a reworked version of former orchestration2, that
-depended heavily on yaml & dictionaries as a general approach. (Deprecated)
-
-Current state is that it's not dependent on yaml anymore, configs goes into constructor etc.,
-but there are still some more improvement to be done regarding use of untyped dictionaries
-Ref. Note2 below. for future directions and changes.
-
-Note1: It does require a specific content/layout of the supplied netcdf files
-      this should be clearly stated.
-
-Note2: The configuration classes are currently very loosely specified,
-       and fueled by Yaml that will (sooner or later) lead to errors deep inside
-       the repository. The goal is to fix these issues through a series of changes.
+Read region netCDF files with cell data.
 
 """
 
@@ -41,7 +27,7 @@ class CFRegionModelRepository(interfaces.RegionModelRepository):
     based on data found in netcdf files.
     """
 
-    def __init__(self, region_config, model_config):#, region_model, epsg):
+    def __init__(self, region_config, model_config):
         """
         Parameters
         ----------
@@ -52,11 +38,6 @@ class CFRegionModelRepository(interfaces.RegionModelRepository):
             Object containing model information, i.e.
             information concerning interpolation and model
             parameters
-        region_model: shyft.api type
-            model to construct. Has cell constructor and region/catchment
-            parameter constructor.
-        epsg: string
-            Coordinate system for result region model
         """
         if not isinstance(region_config, RegionConfig) or \
            not isinstance(model_config, ModelConfig):
@@ -249,7 +230,8 @@ class BoundingBoxRegion(interfaces.BoundingRegion):
         y_min = y.ravel().min()
         y_max = y.ravel().max()
         self.x = np.array([x_min, x_max, x_max, x_min], dtype="d")
-        self.y = np.array([y_max, y_max, y_min, y_min], dtype="d")
+        #self.y = np.array([y_max, y_max, y_min, y_min], dtype="d")
+        self.y = np.array([y_min, y_min, y_max, y_max], dtype="d")
         self.x, self.y = self.bounding_box(target_epsg)
         self._epsg = str(target_epsg)
 
