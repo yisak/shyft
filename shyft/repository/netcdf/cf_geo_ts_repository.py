@@ -53,7 +53,7 @@ class CFDataRepository(interfaces.GeoTsRepository):
         self._bounding_box = None # bounding_box
 
         # Field names and mappings netcdf_name: shyft_name
-        self._arome_shyft_map = {"relative_humidity": "relative_humidity",
+        self._nc_shyft_map = {"relative_humidity": "relative_humidity",
                                  "temperature": "temperature",
                                  "z": "z",
                                  "precipitation": "precipitation",
@@ -182,11 +182,11 @@ class CFDataRepository(interfaces.GeoTsRepository):
         y_mask: np.ndarray
             Boolean index array
         """
-        # Get coordinate system for arome data
+        # Get coordinate system for netcdf data
         data_proj = Proj(data_cs)
         target_proj = Proj(target_cs)
 
-        # Find bounding box in arome projection
+        # Find bounding box in netcdf projection
         bbox = self.bounding_box
         bb_proj = transform(target_proj, data_proj, bbox[0], bbox[1])
         x_min, x_max = min(bb_proj[0]), max(bb_proj[0])
@@ -244,10 +244,10 @@ class CFDataRepository(interfaces.GeoTsRepository):
 
         issubset = True if idx_max < len(time) - 1 else False
         time_slice = slice(idx_min, idx_max)
+        print (idx_min,idx_max,utc_period.start, time[0:3])
         x, y, m_xy, _ = self._limit(x[:], y[:], data_cs.proj4, self.shyft_cs)
         for k in dataset.variables.keys():
-            print (k)
-            if self._arome_shyft_map.get(k, None) in input_source_types:
+            if self._nc_shyft_map.get(k, None) in input_source_types:
                 if k in self._shift_fields and issubset:  # Add one to time slice
                     data_time_slice = slice(time_slice.start, time_slice.stop + 1)
                 else:
@@ -263,8 +263,8 @@ class CFDataRepository(interfaces.GeoTsRepository):
                 if isinstance(pure_arr, np.ma.core.MaskedArray):
                     #print(pure_arr.fill_value)
                     pure_arr = pure_arr.filled(np.nan)
-                raw_data[self._arome_shyft_map[k]] = pure_arr, k
-                #raw_data[self._arome_shyft_map[k]] = np.array(data[data_slice], dtype='d'), k
+                raw_data[self._nc_shyft_map[k]] = pure_arr, k
+                #raw_data[self._nc_shyft_map[k]] = np.array(data[data_slice], dtype='d'), k
 
         if "z" in dataset.variables.keys():
             data = dataset.variables["z"]
