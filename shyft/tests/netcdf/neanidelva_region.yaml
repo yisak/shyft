@@ -39,8 +39,8 @@ catchment_indices:
   - 3178
   - 3536
   - 3630
-  - 100010
-  - 100011
+  - 1000010
+  - 1000011
 
 parameter_overrides:
   1228:
