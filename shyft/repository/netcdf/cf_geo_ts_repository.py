@@ -244,7 +244,7 @@ class CFDataRepository(interfaces.GeoTsRepository):
 
         issubset = True if idx_max < len(time) - 1 else False
         time_slice = slice(idx_min, idx_max)
-        print (idx_min,idx_max,utc_period.start, time[0:3])
+
         x, y, m_xy, _ = self._limit(x[:], y[:], data_cs.proj4, self.shyft_cs)
         for k in dataset.variables.keys():
             if self._nc_shyft_map.get(k, None) in input_source_types:
